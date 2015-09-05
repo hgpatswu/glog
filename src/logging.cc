@@ -2014,7 +2014,7 @@ LogMessageFatal::LogMessageFatal(const char* file, int line,
                                  const CheckOpString& result) :
     LogMessage(file, line, result) {}
 
-LogMessageFatal::~LogMessageFatal() {
+LogMessageFatal::~LogMessageFatal() ATTRIBUTE_NORETURN {
     Flush();
     LogMessage::Fail();
 }
