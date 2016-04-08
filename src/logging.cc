@@ -1142,6 +1142,14 @@ static bool fatal_msg_exclusive = true;
 static LogMessage::LogMessageData fatal_msg_data_exclusive;
 static LogMessage::LogMessageData fatal_msg_data_shared;
 
+#ifdef GLOG_THREAD_LOCAL_STORAGE
+// Static thread-local log data space to use, because typically at most one
+// LogMessageData object exists (in this case glog makes zero heap memory
+// allocations).
+static GLOG_THREAD_LOCAL_STORAGE bool thread_data_available = true;
+static GLOG_THREAD_LOCAL_STORAGE char thread_msg_data[sizeof(LogMessage::LogMessageData)];
+#endif // defined(GLOG_THREAD_LOCAL_STORAGE)
+
 LogMessage::LogMessageData::LogMessageData()
   : stream_(message_text_, LogMessage::kMaxLogMessageLen, 0) {
 }
@@ -1198,8 +1206,19 @@ void LogMessage::Init(const char* file,
                       void (LogMessage::*send_method)()) {
   allocated_ = NULL;
   if (severity != GLOG_FATAL || !exit_on_dfatal) {
+#ifdef GLOG_THREAD_LOCAL_STORAGE
+    // No need for locking, because this is thread local.
+    if (thread_data_available) {
+      thread_data_available = false;
+      data_ = new (&thread_msg_data) LogMessageData();
+    } else {
+      allocated_ = new LogMessageData();
+      data_ = allocated_;
+    }
+#else // !defined(GLOG_THREAD_LOCAL_STORAGE)
     allocated_ = new LogMessageData();
     data_ = allocated_;
+#endif // defined(GLOG_THREAD_LOCAL_STORAGE)
     data_->first_fatal_ = false;
   } else {
     MutexLock l(&fatal_msg_lock);
@@ -1268,6 +1287,12 @@ void LogMessage::Init(const char* file,
 
 LogMessage::~LogMessage() {
   Flush();
+#ifdef GLOG_THREAD_LOCAL_STORAGE
+  if (data_ == static_cast<void*>(&thread_msg_data)) {
+    data_->~LogMessageData();
+    thread_data_available = true;
+  }
+#endif // defined(GLOG_THREAD_LOCAL_STORAGE)
   delete allocated_;
 }
 

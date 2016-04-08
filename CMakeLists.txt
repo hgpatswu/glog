@@ -190,6 +190,29 @@ using namespace Outer::Inner;;
 int main() { return i; }
 " HAVE_NAMESPACES)
 
+check_cxx_source_compiles ("
+__thread int tls;
+int main() { }
+" HAVE_GCC_TLS)
+
+check_cxx_source_compiles ("
+__declspec(thread) int tls;
+int main() { }
+" HAVE_MSVC_TLS)
+
+check_cxx_source_compiles ("
+thread_local int tls;
+int main() { }
+" HAVE_CXX11_TLS)
+
+if (HAVE_GCC_TLS)
+  set (GLOG_THREAD_LOCAL_STORAGE __thread)
+elseif (HAVE_MSVC_TLS)
+  set (GLOG_THREAD_LOCAL_STORAGE "__declspec(thread)")
+elseif (HAVE_CXX11_TLS)
+  set (GLOG_THREAD_LOCAL_STORAGE thread_local)
+endif (HAVE_GCC_TLS)
+
 set (_PC_FIELDS
   "gregs[REG_PC]"
   "gregs[REG_EIP]"
